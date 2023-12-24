@@ -46,7 +46,7 @@ try
 	string action = parameters["ACTION"];
 	action = char.ToUpper(action[0]) + action[1..].ToLower();
 
-	Type type = Type.GetType($"{namespaceName}.Data{data}") ?? throw new ApplicationException($"Data Type not found: \"{data}\".");
+	Type type = Type.GetType($"{namespaceName}.{data}") ?? throw new ApplicationException($"Data Type not found: \"{data}\".");
 
 	object instance = Activator.CreateInstance(type, new object[] { parameters, httpClient }) ?? throw new ApplicationException($"CreateInstance returned null \"{data}\".");
 
