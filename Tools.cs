@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using System.Diagnostics;
+using System.Net;
 using System.Text;
 using System.Xml.Linq;
 
@@ -231,6 +232,64 @@ namespace spludlow_data_get
 			}
 
 			return table;
+		}
+
+		public static string MakeHtmlTable(DataTable table, string? tableStyle)
+		{
+			return MakeHtmlTable(table, table.Rows.OfType<DataRow>(), tableStyle);
+		}
+
+		public static string MakeHtmlTable(DataTable table, IEnumerable<DataRow> rows, string? tableStyle)
+		{
+			StringBuilder html = new StringBuilder();
+
+			html.Append("<table");
+			if (tableStyle != null)
+			{
+				html.Append(" style=\"");
+				html.Append(tableStyle);
+				html.Append("\"");
+			}
+			html.AppendLine(">");
+
+			html.Append("<tr>");
+			foreach (DataColumn column in table.Columns)
+			{
+				if (column.ColumnName.EndsWith("_id") == true)
+					continue;
+
+				html.Append("<th>");
+				html.Append(column.ColumnName);
+				html.Append("</th>");
+			}
+			html.AppendLine("</tr>");
+
+			foreach (DataRow row in rows)
+			{
+				html.Append("<tr>");
+				foreach (DataColumn column in table.Columns)
+				{
+					if (column.ColumnName.EndsWith("_id") == true)
+						continue;
+
+					html.Append("<td>");
+					if (row.IsNull(column) == false)
+					{
+						string value = Convert.ToString(row[column]);
+
+						if (value.StartsWith("<a href=") == true)
+							html.Append(value);
+						else
+							html.Append(WebUtility.HtmlEncode(value));
+					}
+					html.Append("</td>");
+				}
+				html.AppendLine("</tr>");
+			}
+
+			html.AppendLine("</table>");
+
+			return html.ToString();
 		}
 
 

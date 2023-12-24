@@ -1,7 +1,9 @@
 ﻿using System.Data;
 using System.IO.Compression;
-
+using System.Text;
+using System.Web;
 using HtmlAgilityPack;
+using Microsoft.Data.SqlClient;
 
 namespace spludlow_data_get
 {
@@ -194,6 +196,78 @@ namespace spludlow_data_get
 			Tools.DataSet2MSSQL(dataSet, parameters["MSSQL_SERVER"], parameters["MSSQL_TARGET_NAME"]);
 
 			return 0;
+		}
+
+		public async Task<int> Payload()
+		{
+			Tools.RequiredParamters(parameters, "LOAD", ["VERSION", "MSSQL_SERVER", "MSSQL_TARGET_NAME"]);
+
+			SqlConnection connection = new SqlConnection($"{parameters["MSSQL_SERVER"]}Initial Catalog='{parameters["MSSQL_TARGET_NAME"]}';");
+
+			DataTable datafileTable = Tools.ExecuteFill(connection,
+				"SELECT datafile.category, datafile.name, datafile.version, datafile.author, datafile.comment FROM datafile ORDER BY datafile.category, datafile.name");
+
+			StringBuilder html = new StringBuilder();
+
+			foreach (string category in new string[] { "TOSEC", "TOSEC-ISO", "TOSEC-PIX" })
+			{
+				if (html.Length > 0)
+					html.AppendLine("<br />");
+
+				html.AppendLine($"<h2>{category}</h2>");
+
+				DataRow[] datafileCategoryRows = datafileTable.Select($"category = '{category}'");
+
+				foreach (DataRow row in datafileCategoryRows)
+				{
+					string name = (string)row["name"];
+
+					string link = $"/tosec/{Uri.EscapeDataString(name)}";
+
+					row["name"] = $"<a href=\"{link}\">{name}</a>";
+				}
+
+				html.AppendLine(Tools.MakeHtmlTable(datafileTable, datafileCategoryRows, null));
+
+			}
+
+			DataTable table = new DataTable($"tosec_payload");
+			table.Columns.Add("tosec_payload_id", typeof(string));
+			table.Columns.Add("title", typeof(string));
+			table.Columns.Add("xml", typeof(string));
+			table.Columns.Add("json", typeof(string));
+			table.Columns.Add("html", typeof(string));
+
+			table.Rows.Add("1", "", "", "", html.ToString());
+
+			MakeMSSQLPayloadsInsert(table, parameters["MSSQL_SERVER"], parameters["MSSQL_TARGET_NAME"], new string[] { "tosec_payload_id" });
+
+			return 0;
+		}
+
+		public static void MakeMSSQLPayloadsInsert(DataTable table, string serverConnectionString, string databaseName, string[] primaryKeyNames)
+		{
+			using (SqlConnection targetConnection = new SqlConnection(serverConnectionString + $"Initial Catalog='{databaseName}';"))
+			{
+				List<string> columnDefs = new List<string>();
+
+				foreach (string primaryKeyName in primaryKeyNames)
+					columnDefs.Add($"{primaryKeyName} VARCHAR(32)");
+
+				columnDefs.Add("[title] NVARCHAR(MAX)");
+				columnDefs.Add("[xml] NVARCHAR(MAX)");
+				columnDefs.Add("[json] NVARCHAR(MAX)");
+				columnDefs.Add("[html] NVARCHAR(MAX)");
+
+				columnDefs.Add($"CONSTRAINT [PK_{table.TableName}] PRIMARY KEY NONCLUSTERED ({String.Join(", ", primaryKeyNames)})");
+
+				string commandText = $"CREATE TABLE [{table.TableName}] ({String.Join(", ", columnDefs)});";
+
+				Console.WriteLine(commandText);
+				Tools.ExecuteNonQuery(targetConnection, commandText);
+
+				Tools.BulkInsert(targetConnection, table);
+			}
 		}
 
 		public static void MoveHeader(DataSet dataSet)
