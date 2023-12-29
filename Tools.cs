@@ -5,9 +5,21 @@ using System.Text;
 using System.Xml.Linq;
 
 using Microsoft.Data.SqlClient;
+using Newtonsoft.Json;
 
 namespace spludlow_data_get
 {
+	public class CustomJsonWriter : JsonTextWriter
+	{
+		public CustomJsonWriter(TextWriter writer) : base(writer) { }
+		public override void WritePropertyName(string name)
+		{
+			if (name.StartsWith("@") == true)
+				base.WritePropertyName(name.Substring(1));
+			else
+				base.WritePropertyName(name);
+		}
+	}
 	public class Tools
 	{
 		public static void RequiredParamters(Dictionary<string, string> parameters, string action, string[] requiredNames)
