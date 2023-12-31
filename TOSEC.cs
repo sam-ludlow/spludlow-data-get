@@ -1,6 +1,7 @@
 ﻿using System.Data;
 using System.IO.Compression;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Web;
@@ -222,6 +223,8 @@ namespace spludlow_data_get
 
 			SqlConnection connection = new SqlConnection($"{parameters["MSSQL_SERVER"]}Initial Catalog='{parameters["MSSQL_TARGET_NAME"]}';");
 
+			MakeMetaDataTable(connection, version);
+
 			DataTable datafileTable = Tools.ExecuteFill(connection, "SELECT * FROM [datafile]");
 			DataTable gameTable = Tools.ExecuteFill(connection, "SELECT * FROM [game]");
 
@@ -315,6 +318,37 @@ namespace spludlow_data_get
 			return 0;
 		}
 
+		public void MakeMetaDataTable(SqlConnection connection, string version)
+		{
+			string[] columnDefs = new string[] {
+					"[_metadata_id] BIGINT NOT NULL PRIMARY KEY",
+					"[dataset] NVARCHAR(1024) NOT NULL",
+					"[subset] NVARCHAR(1024) NOT NULL",
+					"[version] NVARCHAR(1024) NOT NULL",
+					"[info] NVARCHAR(1024) NOT NULL",
+					"[processed] DATETIME NOT NULL",
+					"[agent] NVARCHAR(1024) NOT NULL",
+				};
+			string commandText = $"CREATE TABLE [_metadata] ({String.Join(", ", columnDefs)});";
+
+			Tools.ExecuteNonQuery(connection, commandText);
+
+			DataTable table = Tools.ExecuteFill(connection, "SELECT * FROM [_metadata]");
+			table.TableName = "_metadata";
+
+			int datafileCount = (int)Tools.ExecuteScalar(connection, "SELECT COUNT(*) FROM datafile");
+			int gameCount = (int)Tools.ExecuteScalar(connection, "SELECT COUNT(*) FROM game");
+			int romCount = (int)Tools.ExecuteScalar(connection, "SELECT COUNT(*) FROM rom");
+
+			string info = $"TOSEC: {version} - datafiles: {datafileCount} - game: {gameCount} - rom: {romCount}";
+
+			string agent = parameters["USER-AGENT"];
+
+			table.Rows.Add(1L, "tosec", "datafile", version, info, DateTime.Now, agent);
+
+			Tools.BulkInsert(connection, table);
+		}
+
 		public static string XML2JSON(XElement element)
 		{
 			JsonSerializerSettings serializerSettings = new JsonSerializerSettings();
@@ -386,6 +420,7 @@ namespace spludlow_data_get
 
 					foreach (DataRow datafileRow in datafileCategoryRows)
 					{
+						string datafile_name = (string)datafileRow["name"];
 						string datafile_description = (string)datafileRow["description"];
 
 						//if (datafile_description.Contains("BBC") == false)
@@ -397,7 +432,7 @@ namespace spludlow_data_get
 
 						string datafile_link = $"/tosec/{datafile_key}";
 
-						datafileRow["description"] = $"<a href=\"{datafile_link}\">{datafile_description}</a>";
+						datafileRow["name"] = $"<a href=\"{datafile_link}\">{datafile_name}</a>";
 
 						//
 						// datafile
@@ -428,18 +463,18 @@ namespace spludlow_data_get
 							StringBuilder gameHtml = new StringBuilder();
 
 							gameHtml.AppendLine("<h2>datafile</h2>");
-							gameHtml.AppendLine(Tools.MakeHtmlTable(datafileTable, [datafileRow], null));
+							gameHtml.AppendLine(Tools.MakeHtmlTable(datafileTable, [datafileRow], null, null));
 
 							gameHtml.AppendLine("<hr />");
 
 							gameHtml.AppendLine("<h2>game</h2>");
-							gameHtml.AppendLine(Tools.MakeHtmlTable(gameTable, [gameRow], null));
+							gameHtml.AppendLine(Tools.MakeHtmlTable(gameTable, [gameRow], null, null));
 
 							gameHtml.AppendLine("<hr />");
 
 							DataRow[] romRows = romTable.Select($"game_id = {game_id}");
 							gameHtml.AppendLine("<h2>rom</h2>");
-							gameHtml.AppendLine(Tools.MakeHtmlTable(romTable, romRows, null));
+							gameHtml.AppendLine(Tools.MakeHtmlTable(romTable, romRows, null, null));
 
 							gameCommand.Parameters["@title"].Value = $"{game_description} / {datafile_description} - TOSEC game";
 							gameCommand.Parameters["@html"].Value = gameHtml.ToString();
@@ -450,7 +485,7 @@ namespace spludlow_data_get
 
 						}
 
-						dataFileHtml.AppendLine(Tools.MakeHtmlTable(gameTable, gameRows, null));
+						dataFileHtml.AppendLine(Tools.MakeHtmlTable(gameTable, gameRows, null, null));
 
 						datafileCommand.Parameters["@title"].Value = $"{datafile_description} - TOSEC datafile";
 						datafileCommand.Parameters["@html"].Value = dataFileHtml.ToString();
@@ -459,7 +494,7 @@ namespace spludlow_data_get
 						datafileCommand.ExecuteNonQuery();
 					}
 
-					tosecHtml.AppendLine(Tools.MakeHtmlTable(datafileTable, datafileCategoryRows, null));
+					tosecHtml.AppendLine(Tools.MakeHtmlTable(datafileTable, datafileCategoryRows, null, ["name", "category", "version", "author"]));
 				}
 			}
 			finally

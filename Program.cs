@@ -18,10 +18,12 @@ int exitCode = 0;
 
 try
 {
+	Dictionary<string, string> parameters = [];
+
 	HttpClient httpClient = new ();
 	httpClient.DefaultRequestHeaders.Add("User-Agent", userAgent);
 
-	Dictionary<string, string> parameters = [];
+	parameters.Add("USER-AGENT", userAgent);
 
 	foreach (string arg in args)
 	{

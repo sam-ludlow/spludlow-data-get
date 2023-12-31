@@ -246,13 +246,26 @@ namespace spludlow_data_get
 			return table;
 		}
 
-		public static string MakeHtmlTable(DataTable table, string? tableStyle)
+		public static string MakeHtmlTable(DataTable table, string? tableStyle, string[]? columnNames)
 		{
-			return MakeHtmlTable(table, table.Rows.OfType<DataRow>(), tableStyle);
+			return MakeHtmlTable(table, table.Rows.OfType<DataRow>(), tableStyle, columnNames);
 		}
 
-		public static string MakeHtmlTable(DataTable table, IEnumerable<DataRow> rows, string? tableStyle)
+		public static string MakeHtmlTable(DataTable table, IEnumerable<DataRow> rows, string? tableStyle, string[]? columnNames)
 		{
+			List<DataColumn> columns = new List<DataColumn>();
+
+			if (columnNames != null)
+			{
+				foreach (string columnName in columnNames)
+					columns.Add(table.Columns[columnName]);
+			}
+			else
+			{
+				foreach (DataColumn column in table.Columns)
+					columns.Add(column);
+			}
+
 			StringBuilder html = new StringBuilder();
 
 			html.Append("<table");
@@ -265,7 +278,7 @@ namespace spludlow_data_get
 			html.AppendLine(">");
 
 			html.Append("<tr>");
-			foreach (DataColumn column in table.Columns)
+			foreach (DataColumn column in columns)
 			{
 				if (column.ColumnName.EndsWith("_id") == true)
 					continue;
@@ -279,7 +292,7 @@ namespace spludlow_data_get
 			foreach (DataRow row in rows)
 			{
 				html.Append("<tr>");
-				foreach (DataColumn column in table.Columns)
+				foreach (DataColumn column in columns)
 				{
 					if (column.ColumnName.EndsWith("_id") == true)
 						continue;
